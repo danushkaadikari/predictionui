@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from "react";
+import React, { useEffect } from "react";
 import Card from "../components/Card";
 import { MetmaskContext } from "../contexts/MetmaskContextProvider";
 import Button from "../UI/Button";
