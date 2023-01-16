@@ -6,6 +6,7 @@ export const getLatestRound = async (contract: Contract) => {
     return Number(latestRound);
   } catch (error) {
     console.log("LL: getLatestRound -> error", error);
+    throw error;
   }
 };
 
@@ -21,6 +22,7 @@ export const getLatestRoundData = async (contract: Contract) => {
     };
   } catch (error) {
     console.log("LL: getLatestRoundData -> error", error);
+    throw error;
   }
 };
 
@@ -36,5 +38,16 @@ export const getRoundData = async (contract: Contract, roundId: BigNumber) => {
     };
   } catch (error) {
     console.log("LL: getRoundData -> error", error);
+    throw error;
+  }
+};
+
+export const getLatestAnswer = async (contract: Contract) => {
+  try {
+    const latestAnswer = await contract.latestAnswer();
+    return Number((Number(latestAnswer) / 100000000).toFixed(2));
+  } catch (error) {
+    console.log("LL: getLatestAnswer -> error", error);
+    throw error;
   }
 };

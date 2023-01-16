@@ -94,6 +94,10 @@ const MetmaskContextProvider: React.FC<{
     setBalance(null);
   };
 
+  /**
+   * creates contract objects and assigs provider
+   */
+
   const setContracts = async () => {
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     //set Web3Provider
@@ -135,19 +139,26 @@ const MetmaskContextProvider: React.FC<{
     }
   };
 
+  /**
+   * Handles post call of contracts
+   * @param to smart contract address
+   * @param data encoded abi of function
+   * @param value value to be sent[Optional]
+   * @param from from account[Optional]
+   */
+
   const postTransaction = async (
     to: string,
     data: string,
     value?: BigNumber | number,
     from?: string
   ) => {
+    let signerTemp = (provider as ethers.providers.Web3Provider).getSigner();
     if (!signer) {
       connectHandler();
     }
-    console.log("LL: signer", signer);
 
-    const fromTemp = from ? from : await signer.getAddress();
-    console.log("LL: fromTemp", fromTemp);
+    const fromTemp = from ? from : await signerTemp.getAddress();
     const tx = {
       from: fromTemp,
       to,
