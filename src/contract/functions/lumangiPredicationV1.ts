@@ -34,7 +34,63 @@ export const getCurrentEpoch = async (contract: Contract) => {
     const latestRoundData: BigNumber = await contract.currentEpoch();
     return Number(latestRoundData);
   } catch (error) {
-    console.log("LL: getLatestRoundData -> error", error);
+    console.log("LL: getCurrentEpoch -> error", error);
+    throw error;
+  }
+};
+export const getUserRoundsLength = async (contract: Contract) => {
+  try {
+    const latestRoundData: BigNumber = await contract.currentEpoch();
+    return Number(latestRoundData);
+  } catch (error) {
+    console.log("LL: getCurrentEpoch -> error", error);
+    throw error;
+  }
+};
+
+export const getClaimable = async (
+  contract: Contract,
+  epoch: number,
+  user: string
+) => {
+  try {
+    const isClaimable: boolean = await contract.claimable(
+      BigNumber.from(epoch),
+      user
+    );
+    return isClaimable;
+  } catch (error) {
+    console.log("LL: error", error);
+    throw error;
+  }
+};
+
+export const getUserRounds = async (
+  contract: Contract,
+  user: string,
+  cursor: Number = 0,
+  size: Number = 1000
+) => {
+  try {
+    const allRounds = await contract.getUserRounds(user, cursor, size);
+    const allRoundsData = await allRounds[0].reduce(
+      async (prev: any, epoch: BigNumber, index: number) => {
+        const newPrev = await prev;
+        const claimable = await getClaimable(contract, Number(epoch), user);
+        const { amount, claimed, position } = allRounds[1][index];
+        newPrev[Number(epoch)] = {
+          amount: Number(amount),
+          claimed,
+          position,
+          claimable,
+        };
+        return newPrev;
+      },
+      Promise.resolve({})
+    );
+    return allRoundsData;
+  } catch (error) {
+    console.log("LL: getCurrentEpoch -> error", error);
     throw error;
   }
 };
@@ -63,6 +119,15 @@ export const getEpochDetails = async (
     };
   } catch (error) {
     console.log("LL: getEpochDetails -> error", error);
+    throw error;
+  }
+};
+
+export const postClaimAbi = async (contract: Contract, epochs: BigNumber[]) => {
+  try {
+    return contract.interface.encodeFunctionData("claim", [epochs]);
+  } catch (error) {
+    console.log("LL: getLatestRound -> error", error);
     throw error;
   }
 };

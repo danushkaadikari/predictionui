@@ -20,8 +20,8 @@ type MetamaskContextType = {
   setErrorMessage: Dispatch<SetStateAction<string | null>>;
   account: null | string;
   setAccount: Dispatch<SetStateAction<string | null>>;
-  balance: null | string;
-  setBalance: Dispatch<SetStateAction<string | null>>;
+  balance: null | BigNumber;
+  setBalance: Dispatch<SetStateAction<BigNumber | null>>;
   connectHandler: () => void;
   provider: ethers.providers.Web3Provider | null;
   eacAggregatorProxyContract: Contract | null;
@@ -32,6 +32,7 @@ type MetamaskContextType = {
     value?: number | BigNumber,
     from?: string
   ) => void;
+  getBalance: () => Promise<BigNumber>;
 };
 
 export const MetmaskContext = createContext<MetamaskContextType>({
@@ -46,6 +47,7 @@ export const MetmaskContext = createContext<MetamaskContextType>({
   eacAggregatorProxyContract: null,
   lumanagiPredictionV1Contract: null,
   postTransaction: () => {},
+  getBalance: () => Promise.resolve(BigNumber.from(0)),
 });
 
 const MetmaskContextProvider: React.FC<{
@@ -53,7 +55,7 @@ const MetmaskContextProvider: React.FC<{
 }> = ({ children }) => {
   const [errorMessage, setErrorMessage] = useState<null | string>(null);
   const [account, setAccount] = useState<null | string>(null);
-  const [balance, setBalance] = useState<null | string>(null);
+  const [balance, setBalance] = useState<null | BigNumber>(null);
   const [provider, setProvider] =
     useState<null | ethers.providers.Web3Provider>(null);
   const [eacAggregatorProxyContract, setEacAggregatorProxyContract] =
@@ -71,13 +73,22 @@ const MetmaskContextProvider: React.FC<{
    */
 
   const accountsChanged = async (newAccount: string) => {
-    setAccount(newAccount);
     try {
-      const balance = await window.ethereum.request({
-        method: "eth_getBalance",
-        params: [newAccount.toString(), "latest"],
-      });
-      setBalance(ethers.utils.formatEther(balance));
+      if (Array.isArray(newAccount) && newAccount.length > 0) {
+        setAccount(newAccount[0]);
+        const balance = await window.ethereum.request({
+          method: "eth_getBalance",
+          params: [newAccount.toString(), "latest"],
+        });
+        setBalance(BigNumber.from(balance));
+      } else {
+        setAccount(newAccount);
+        const balance = await window.ethereum.request({
+          method: "eth_getBalance",
+          params: [newAccount.toString(), "latest"],
+        });
+        setBalance(BigNumber.from(balance));
+      }
     } catch (err) {
       console.error(err);
       setErrorMessage("There was a problem connecting to MetaMask");
@@ -126,16 +137,41 @@ const MetmaskContextProvider: React.FC<{
     if (window.ethereum) {
       try {
         setSigner(provider?.getSigner());
+
         const res = await window.ethereum.request({
           method: "eth_requestAccounts",
         });
-        await accountsChanged(res[0]);
+        if (res.length > 0) {
+          await accountsChanged(res[0]);
+        }
       } catch (err) {
         console.error(err);
         setErrorMessage("There was a problem connecting to MetaMask");
       }
     } else {
       setErrorMessage("Install MetaMask");
+    }
+  };
+  /**
+   *
+   */
+  const getBalance = async () => {
+    if (window.ethereum) {
+      try {
+        if (window.ethereum.selectedAddress) {
+          const balance = (await provider?.getBalance(
+            window.ethereum.selectedAddress
+          )) as BigNumber;
+
+          return balance;
+        }
+        return BigNumber.from(0);
+      } catch (error) {
+        console.log("LL: getBalance -> error", error);
+        throw error;
+      }
+    } else {
+      throw new Error("Install MetaMask");
     }
   };
 
@@ -162,7 +198,7 @@ const MetmaskContextProvider: React.FC<{
     const tx = {
       from: fromTemp,
       to,
-      value: value?.toString(),
+      value: value ? (value as BigNumber)._hex : undefined,
       data,
     };
 
@@ -179,6 +215,18 @@ const MetmaskContextProvider: React.FC<{
       window.ethereum.on("chainChanged", chainChanged);
       window.ethereum.on("disconnect", chainChanged);
       setContracts();
+      if (window.ethereum.selectedAddress) {
+        console.log(
+          "LL: window.ethereum.selectedAddress",
+          window.ethereum.selectedAddress
+        );
+        setAccount(window.ethereum.selectedAddress);
+        (async () => {
+          const balace = await getBalance();
+          console.log("LL: balace", balace);
+          setBalance(balace);
+        })();
+      }
     }
     return () => {
       setProvider(null);
@@ -200,6 +248,7 @@ const MetmaskContextProvider: React.FC<{
         eacAggregatorProxyContract,
         lumanagiPredictionV1Contract,
         postTransaction,
+        getBalance,
       }}
     >
       {children}

@@ -1,11 +1,24 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { MAX_TIMER_IN_MINUTES } from "../constants/common";
 import Button from "../UI/Button";
+import { useState, useRef, useContext } from "react";
+import RangeSlider from "../common/RangeSlider";
+import { ReactComponent as Down } from "../assets/images/down.svg";
+import { ReactComponent as Loader } from "../assets/images/loader.svg";
+import { ReactComponent as Back } from "../assets/images/back.svg";
+import { MetmaskContext } from "../contexts/MetmaskContextProvider";
+import { BigNumber } from "ethers";
+import {
+  getMaticValue,
+  getGweiValue,
+  getPercentValue,
+  // getValueFromPercentage,
+} from "../utils/index";
 
 interface CardType {
   loading: boolean;
-  betBearHandler: () => void;
-  betBullHandler: () => void;
+  betBearHandler: (amount: number) => void;
+  betBullHandler: (amount: number) => void;
   active?: boolean;
   live?: boolean;
   minutes?: number;
@@ -27,6 +40,13 @@ interface CardType {
   disableUpDown?: boolean;
   latestAnswer?: number;
   prev?: CardType;
+  innerRef?: any;
+  key: string | number;
+  diff: number;
+  downPerc: number;
+  upPerc: number;
+  userRounds: any;
+  postClaim: Function;
 }
 
 const Header = ({
@@ -67,26 +87,7 @@ const Header = ({
         </p>
         {loading ? (
           <div className="flex items-center justify-center text-black">
-            <svg
-              className="w-5 h-5 mr-3 -ml-1 text-white animate-spin"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
+            <Loader className="w-12 h-12 mr-3 -ml-1 text-white animate-spin" />
           </div>
         ) : (
           <p className="text-2xl text-white font-poppins">#{epoch}</p>
@@ -111,43 +112,50 @@ const Header = ({
 };
 
 const LiveBodyContent = (data: any) => {
+  const epochPresent = data.userRounds[data.epoch];
+  if (epochPresent)
+    console.log("LL: LiveBodyContent -> epochPresent", epochPresent);
+
   return (
     <div
-      className={`space-y-4 h-48 border-[#3D8DFF] border-[1px] border-solid p-2 mx-2 !mt-0 rounded-lg text-white ${
-        data.active ? "" : "opacity-30"
-      }`}
+      className={`space-y-4 h-48 border-[#3D8DFF] border-[1px] border-solid p-2 mx-2 !mt-0 rounded-lg text-white `}
     >
-      <p className="text-xs font-bold opacity-90">Last Price</p>
-      <div className="flex items-center justify-between text-xl font-bold">
-        <p className="text-xl font-semibold font-poppins">
-          ${data.active ? data.latestAnswer : data.closePrice}
+      <div className="flex w-100">
+        <p
+          className={`text-xs font-bold  ${
+            data.active ? "opacity-90" : "opacity-30"
+          }`}
+        >
+          Last Price
         </p>
-        <div className="bg-[#596CC4] rounded-lg px-4 py-2">
-          <p className="flex items-center justify-between gap-1 text-xs font-bold">
-            <svg
-              width="19"
-              height="22"
-              viewBox="0 0 19 22"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className={`rotate-${data.diff < 0 ? "180" : "0"}`}
-            >
-              <path
-                d="M10.3178 0.642034C9.85102 0.175294 9.09429 0.175294 8.62755 0.642034L1.02159 8.24799C0.55485 8.71473 0.55485 9.47147 1.02159 9.93821C1.48833 10.4049 2.24506 10.4049 2.7118 9.93821L9.47266 3.17735L16.2335 9.93821C16.7002 10.4049 17.457 10.4049 17.9237 9.93821C18.3905 9.47147 18.3905 8.71473 17.9237 8.24799L10.3178 0.642034ZM10.6678 21.4065L10.6678 1.48714L8.27749 1.48714L8.27749 21.4065L10.6678 21.4065Z"
-                fill="white"
-              />
-            </svg>
-            ${data.diff.toFixed(2)}
+        {epochPresent && epochPresent.claimable && !epochPresent.claimed && (
+          <Button
+            label={"Claim"}
+            customStyle={"text-xs p-0 ml-auto"}
+            onClick={() => data.postClaim(data.epoch)}
+          />
+        )}
+      </div>
+      <div className={`${data.active ? "" : "opacity-30"}`}>
+        <div className="flex items-center justify-between text-xl font-bold">
+          <p className="text-xl font-semibold font-poppins">
+            ${data.active ? data.latestAnswer : data.closePrice}
           </p>
+          <div className="bg-[#596CC4] rounded-lg px-4 py-2">
+            <p className="flex items-center justify-between gap-1 text-xs font-bold ">
+              <Down className={`${data.diff < 0 ? "rotate-180" : ""}`} />$
+              {data.diff.toFixed(2)}
+            </p>
+          </div>
         </div>
-      </div>
-      <div className="flex !mt-6 justify-between opacity-70 text-xs font-medium">
-        <p>Locked Price</p>
-        <p>${data.lockPrice}</p>
-      </div>
-      <div className="flex !mt-6 justify-between font-bold text-xs">
-        <p>Prize Pool</p>
-        <p>${data.rewardAmount}</p>
+        <div className="flex !mt-6 justify-between opacity-70 text-xs font-medium">
+          <p>Locked Price</p>
+          <p>${data.lockPrice}</p>
+        </div>
+        <div className="flex !mt-6 justify-between font-bold text-xs">
+          <p>Prize Pool</p>
+          <p>${data.rewardAmount}</p>
+        </div>
       </div>
     </div>
   );
@@ -185,53 +193,17 @@ const NextBodyContent = (data: CardType) => {
 };
 
 const Body = (data: CardType) => {
-  let diff = 0;
-  let downPerc = 0;
-  let upPerc = 0;
-  let total = data.totalAmount || 0;
-
-  if (!data.loading) {
-    const price: number = (
-      data.active && data.live ? data.latestAnswer : data.closePrice
-    ) as number;
-    if (data.prev) {
-      diff = price - (data.prev.closePrice as number);
-    }
-  }
-  if (data.live && total > 0) {
-    downPerc = (total as number) / (data.bearAmount as number);
-    upPerc = (total as number) / (data.bullAmount as number);
-  }
   return (
     <>
       {data.loading ? (
         <div className="flex items-center justify-center py-8 mx-1 h-80">
-          <svg
-            className="w-12 h-12 mr-3 -ml-1 text-white animate-spin"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            ></circle>
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
-          </svg>
+          <Loader className="w-12 h-12 mr-3 -ml-1 text-white animate-spin" />
         </div>
       ) : (
         <div className="py-8 mx-1">
           <div
             className={`flex flex-col items-center justify-center py-4 text-sm text-white bg-no-repeat ${
-              diff < 0 ? "opacity-50" : ""
+              data.diff < 0 ? "opacity-50" : ""
             }`}
             style={{
               backgroundImage: `url('/Polygon 1.svg')`,
@@ -240,28 +212,181 @@ const Body = (data: CardType) => {
             }}
           >
             <p className="text-xs font-medium uppercase">up</p>
-            <p className="text-xs opacity-70"> {upPerc}x Payout</p>
+            <p className="text-xs opacity-70"> {data.upPerc}x Payout</p>
           </div>
           {data.live ? (
-            <LiveBodyContent {...data} diff={diff} />
+            <LiveBodyContent {...data} diff={data.diff} />
           ) : (
             <NextBodyContent {...data} />
           )}
           <div
             className={`text-white text-sm flex flex-col justify-center items-center bg-no-repeat py-4 mx-4 ${
-              diff > 0 ? "opacity-50" : ""
+              data.diff > 0 ? "opacity-50" : ""
             }`}
             style={{
               backgroundImage: `url('/Polygon 2.png')`,
               backgroundSize: "100% 100%",
             }}
           >
-            <p className="text-xs opacity-70">{downPerc}x Payout</p>
+            <p className="text-xs opacity-70">{data.downPerc}x Payout</p>
             <p className="text-xs font-medium uppercase ">down</p>
           </div>
         </div>
       )}
     </>
+  );
+};
+
+export const FlipCardBack = ({
+  innerRef,
+  direction,
+  setDirection,
+  setShowBack,
+  betBearHandler,
+  betBullHandler,
+  disabled,
+}: {
+  innerRef: any;
+  direction: string;
+  setDirection: Function;
+  setShowBack: Function;
+  betBearHandler: Function;
+  betBullHandler: Function;
+  disabled: boolean;
+}) => {
+  const flipCard = () => {
+    if (innerRef && innerRef.current) {
+      innerRef.current.style.transform = "rotateY(0deg)";
+      setShowBack(false);
+    }
+  };
+  const [rangeValue, setRangeValue] = useState("0");
+  const [inputVal, setInputVal] = useState<number | string>("");
+
+  const percentages = [10, 25, 50, 75, 100];
+  const { connectHandler, balance, getBalance, setBalance } =
+    useContext(MetmaskContext);
+
+  useEffect(() => {
+    (async () => {
+      setBalance(await getBalance());
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (balance) {
+      setInputVal(
+        getMaticValue(
+          getPercentValue(BigNumber.from(balance), Number(rangeValue))
+        )
+      );
+    }
+  }, [rangeValue]);
+
+  const handleSubmit: React.FormEventHandler<HTMLFormElement> = (e) => {
+    e.preventDefault();
+    connectHandler();
+
+    if (!disabled) {
+      const formatedInput = getGweiValue(inputVal);
+      if (direction === "UP") {
+        betBullHandler(formatedInput);
+      } else {
+        betBearHandler(formatedInput);
+      }
+      flipCard();
+    }
+  };
+  const balanceStr =
+    typeof balance === "string"
+      ? balance
+      : getMaticValue(balance || BigNumber.from(0));
+
+  return (
+    <div className="flip-card-back rounded-3xl bg-[#283573] border-slate-600 border-[1px] backdrop-blur-lg w-full">
+      <form onSubmit={handleSubmit}>
+        <div className="flex px-4 py-2 text-xl w-100">
+          <Back onClick={flipCard} />
+          <div className="text-red-500">Set Position</div>
+
+          {direction === "UP" ? (
+            <div
+              className="float-right px-2 ml-auto bg-[#84FF90] bg-opacity-30 rounded text-sm flex justify-between items-center gap-1 cursor-pointer"
+              onClick={() => setDirection("DOWN")}
+            >
+              UP
+              <Down />
+            </div>
+          ) : (
+            <div
+              className="float-right px-2 ml-auto bg-[#C3C3C3] bg-opacity-30 rounded text-sm flex justify-between items-center gap-1 cursor-pointer"
+              onClick={() => setDirection("UP")}
+            >
+              DOWN
+              <Down className="rotate-180" />
+            </div>
+          )}
+        </div>
+        <div
+          className="bg-[#fd073a80] rounded-tr-3xl h-4 rounded-br-3xl transition-width   transition-slowest ease duration-500"
+          style={{ width: "100%" }}
+        ></div>
+        <div className="mt-4 h-4/5">
+          <div
+            className={`flex px-4 py-2 w-100 ${disabled ? "opacity-50" : ""}`}
+          >
+            Commit:
+          </div>
+          <div className={`flex flex-col ${disabled ? "opacity-50" : ""}`}>
+            <div className="flex px-4 py-2 w-100">
+              <input
+                type="number"
+                className="block w-full px-3 py-3 m-0 text-base font-normal text-gray-700 transition ease-in-out bg-white border border-gray-300 border-solid rounded-2xl form-control bg-clip-padding focus:text-gray-700 focus:bg-white focus:border-blue-600 focus:outline-none"
+                id="amount"
+                placeholder="Enter Amount"
+                max={Number(balanceStr)}
+                min={0.01}
+                value={inputVal}
+                onChange={(e) => setInputVal(e.target.value)}
+                required
+                disabled={disabled}
+              />
+            </div>
+            <div className="px-4 py-2 text-xs text-right w-100">
+              Balance : <span>{balanceStr}</span>
+            </div>
+            <div className="py-2 mx-4">
+              <RangeSlider value={rangeValue} setValue={setRangeValue} />
+            </div>
+            <div className="flex justify-between gap-1 px-4 py-2 w-100 ">
+              {percentages.map((percentage) => (
+                <button
+                  className="flex px-3 text-xs transition duration-300 bg-[#FF073A] rounded-full align-center w-max text-white ease py-1"
+                  onClick={() => setRangeValue(percentage.toString())}
+                  type="button"
+                  disabled={disabled}
+                  key={percentage}
+                >
+                  {percentage}%
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col px-4 mt-10 w-100">
+            <Button
+              label={disabled ? "Connect Wallet" : "Predict"}
+              customStyle="mb-2"
+              type="submit"
+            />
+            <div className="text-xs">
+              You won't be able to remove or change your position once you enter
+              it.
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
   );
 };
 
@@ -271,18 +396,95 @@ export function Card({
   minutes = 0,
   ...rest
 }: CardType) {
+  const [direction, setDirection] = useState("UP");
+  const [showBack, setShowBack] = useState(false);
+  const [disabledBack, setDisabledBack] = useState(false);
+
+  const innerRef = useRef<HTMLDivElement>(null);
+  let diff = 0;
+  let downPerc = 0;
+  let upPerc = 0;
+  let total = rest.totalAmount || 0;
+  const { account } = useContext(MetmaskContext);
+  if (!rest.loading) {
+    const price: number = (
+      active && live ? rest.latestAnswer : rest.closePrice
+    ) as number;
+    if (rest.prev) {
+      diff = price - (rest.prev.closePrice as number);
+    }
+  }
+  if (live && total > 0) {
+    downPerc = (total as number) / (rest.bearAmount as number);
+    upPerc = (total as number) / (rest.bullAmount as number);
+  }
+
+  const betBullHandler = () => {
+    if (innerRef && innerRef.current) {
+      innerRef.current.style.transform = "rotateY(180deg)";
+      setDirection("UP");
+      setShowBack(true);
+
+      if (!window.ethereum || !account) {
+        setDisabledBack(true);
+      }
+    }
+  };
+  const betBearHandler = () => {
+    if (innerRef && innerRef.current) {
+      innerRef.current.style.transform = "rotateY(180deg)";
+      setDirection("DOWN");
+      setShowBack(true);
+      if (!window.ethereum || !account) {
+        setDisabledBack(true);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (disabledBack && account) {
+      setDisabledBack(false);
+    }
+  }, [account]);
+
   return (
-    <div
-      className={`rounded-3xl bg-[#283573] border-slate-600 border-[1px] backdrop-blur-lg w-full `}
-    >
-      <Header
-        live={live}
-        loading={rest.loading}
-        epoch={rest.epoch}
-        active={active}
-        minutes={minutes}
-      />
-      <Body live={live} active={active} {...rest} />
+    <div className="h-full flip-card" key={rest.key}>
+      <div className="flip-card-inner " ref={innerRef}>
+        <div className="flip-card-front rounded-3xl bg-[#283573] border-slate-600 border-[1px] backdrop-blur-lg w-full">
+          {/* <div
+            className={` `}
+          > */}
+          <Header
+            live={live}
+            loading={rest.loading}
+            epoch={rest.epoch}
+            active={active}
+            minutes={minutes}
+          />
+          <Body
+            live={live}
+            active={active}
+            {...rest}
+            betBearHandler={betBearHandler}
+            betBullHandler={betBullHandler}
+            upPerc={upPerc}
+            downPerc={downPerc}
+            diff={diff}
+          />
+          {/* </div> */}
+        </div>
+        {showBack && (
+          <FlipCardBack
+            innerRef={innerRef}
+            direction={direction}
+            setDirection={setDirection}
+            setShowBack={setShowBack}
+            betBearHandler={rest.betBearHandler}
+            betBullHandler={rest.betBullHandler}
+            disabled={disabledBack}
+          />
+        )}
+      </div>
     </div>
   );
 }

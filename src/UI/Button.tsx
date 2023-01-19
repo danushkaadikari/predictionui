@@ -8,6 +8,7 @@ interface ButtonType {
   customStyle?: string;
   disabled?: boolean;
   title?: string;
+  type?: "button" | "submit" | "reset" | undefined;
 }
 
 export function Button({
@@ -18,6 +19,7 @@ export function Button({
   customStyle = "",
   disabled = false,
   title = "",
+  type = "button",
 }: ButtonType) {
   const buttonStyle = useMemo(() => {
     let style = "";
@@ -62,6 +64,7 @@ export function Button({
       className={`${buttonStyle} ${customStyle}`}
       disabled={disabled}
       title={title}
+      type={type}
     >
       {label}
     </button>

@@ -10,6 +10,7 @@ export function Header() {
     console.log("clicked on buy & sell");
   };
   const { connectHandler, account } = useContext(MetmaskContext);
+  console.log("LL: Header -> account", account);
 
   return (
     <>
@@ -20,7 +21,7 @@ export function Header() {
           <Button onClick={handleBuySell} label="Buy & Sell" />
           <Button
             onClick={connectHandler}
-            label={account ? account : "Connect Wallet"}
+            label={!!account ? account : "Connect Wallet"}
             color="default"
             disabled={!!account}
             customStyle="w-40 text-ellipsis overflow-hidden whitespace-nowrap"

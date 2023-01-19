@@ -10,13 +10,16 @@ import {
   postBetBullAbi,
 } from "../contract/functions/lumangiPredicationV1";
 import { LUMANAGI_PREDICTION_V1_ADDRESS } from "../constants/contract";
-import { getMinBetAmount } from "../contract/functions/lumangiPredicationV1";
 import {
   getEpochDetails,
   getCurrentEpoch,
 } from "../contract/functions/lumangiPredicationV1";
 import { convertEpochToDate, getSecondsDiffrence } from "../utils/index";
 import { getLatestAnswer } from "../contract/functions/eacAggregatorProxy";
+import {
+  getUserRounds,
+  postClaimAbi,
+} from "../contract/functions/lumangiPredicationV1";
 
 const Tabs = () => {
   return (
@@ -39,8 +42,10 @@ const Dashboard: React.FC<{}> = () => {
     lumanagiPredictionV1Contract,
     postTransaction,
     eacAggregatorProxyContract,
+    getBalance,
+    account,
   } = useContext(MetmaskContext);
-
+  const [userRounds, setUserRounds] = useState<any>({});
   const [rounds, setRounds] = useState<any[]>([
     {
       live: true,
@@ -64,6 +69,8 @@ const Dashboard: React.FC<{}> = () => {
     },
   ]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadingCurrentCard, setLoadingCurrentCard] = useState<boolean>(false);
+
   const [currentEpoch, setCurrentEpoch] = useState<number>(-1);
   const [disableUpDown, setDisableUpDown] = useState<boolean>(false);
   const [seconds, setSeconds] = useState<null | number>(null);
@@ -73,21 +80,22 @@ const Dashboard: React.FC<{}> = () => {
 
   const setDisplayData = async (selectedEpoch: number) => {
     const allData = await getRoundsData([
+      selectedEpoch - 4,
       selectedEpoch - 3,
       selectedEpoch - 2,
       selectedEpoch - 1,
       selectedEpoch,
       selectedEpoch + 1,
-      selectedEpoch + 2,
     ]);
 
     setCurrentEpoch(selectedEpoch);
-    const endEpochDataTimpStamp = allData[3].closeTimestamp;
+    const endEpochDataTimpStamp = allData[4].lockTimestamp;
 
     const secondsData = getSecondsDiffrence(
       new Date(),
       convertEpochToDate(endEpochDataTimpStamp)
     );
+
     setSeconds(secondsData % 60);
     setMinutes(secondsData < 60 ? 0 : Math.floor(secondsData / 60));
     setOldest(allData[0]);
@@ -100,18 +108,26 @@ const Dashboard: React.FC<{}> = () => {
 
   const startRoundCallback = async (epoch: BigNumber) => {
     const newEpoch = Number(epoch);
+    setDisableUpDown(false);
     setLoading(true);
     setDisplayData(newEpoch);
     setLoading(false);
-    setDisableUpDown(false);
   };
 
   /**
    * Handles callback for Lock round event
    */
 
-  const lockRoundCallback = async () => {
-    setDisableUpDown(true);
+  const lockRoundCallback = async (
+    epoch: BigNumber,
+    roundId: BigNumber,
+    price: BigNumber
+  ) => {
+    console.log("LL: lockRoundCallback Start");
+    console.log("LL: lockRoundCallback -> Number(epoch)", Number(epoch));
+    console.log("LL: lockRoundCallback -> Number(roundId)", Number(roundId));
+    console.log("LL: lockRoundCallback -> Number(price)", Number(price));
+    console.log("LL: lockRoundCallback End");
   };
 
   /**
@@ -124,14 +140,19 @@ const Dashboard: React.FC<{}> = () => {
    * Handles click of enter up button
    */
 
-  const betBearHandler = async () => {
+  const betBearHandler = async (amount: Number) => {
+    console.log("LL: betBearHandler -> amount", Number(amount));
     if (lumanagiPredictionV1Contract) {
       const abi = await postBetBearAbi(
         lumanagiPredictionV1Contract,
         currentEpoch
       );
-      const betAmount = await getMinBetAmount(lumanagiPredictionV1Contract);
-      postTransaction(LUMANAGI_PREDICTION_V1_ADDRESS, abi, betAmount);
+      // const betAmount = await getMinBetAmount(lumanagiPredictionV1Contract);
+      postTransaction(
+        LUMANAGI_PREDICTION_V1_ADDRESS,
+        abi,
+        BigNumber.from(amount)
+      );
     }
   };
 
@@ -139,15 +160,32 @@ const Dashboard: React.FC<{}> = () => {
    * Handles click of enter down button
    */
 
-  const betBullHandler = async () => {
+  const betBullHandler = async (amount: Number) => {
+    console.log("LL: betBullHandler -> amount", amount);
     if (lumanagiPredictionV1Contract) {
       const abi = await postBetBullAbi(
         lumanagiPredictionV1Contract,
         currentEpoch
       );
-      const betAmount = await getMinBetAmount(lumanagiPredictionV1Contract);
+      // const betAmount = await getMinBetAmount(lumanagiPredictionV1Contract);
 
-      postTransaction(LUMANAGI_PREDICTION_V1_ADDRESS, abi, betAmount);
+      postTransaction(
+        LUMANAGI_PREDICTION_V1_ADDRESS,
+        abi,
+        BigNumber.from(amount)
+      );
+    }
+  };
+
+  /**
+   * Handles click of enter up button
+   */
+
+  const postClaim = async (epoch: BigNumber) => {
+    if (lumanagiPredictionV1Contract) {
+      const abi = await postClaimAbi(lumanagiPredictionV1Contract, [epoch]);
+      // const betAmount = await getMinBetAmount(lumanagiPredictionV1Contract);
+      postTransaction(LUMANAGI_PREDICTION_V1_ADDRESS, abi);
     }
   };
 
@@ -186,6 +224,7 @@ const Dashboard: React.FC<{}> = () => {
       setLatestAnswer(latestAnswerTemp);
     }
   };
+
   /**
    * Intial function calls for lumangi predication contracts
    */
@@ -200,6 +239,15 @@ const Dashboard: React.FC<{}> = () => {
           lumanagiPredictionV1Contract
         );
         await setDisplayData(currentEpoch);
+        await getBalance();
+        if (account) {
+          const userRounds = await getUserRounds(
+            lumanagiPredictionV1Contract,
+            account
+          );
+          setUserRounds(userRounds);
+        }
+
         setLoading(false);
       })();
     }
@@ -219,18 +267,20 @@ const Dashboard: React.FC<{}> = () => {
   return (
     <div className="w-full">
       <Tabs />
-      {seconds !== null && minutes !== null && (
-        <Timer
-          seconds={seconds}
-          minutes={minutes}
-          setSeconds={setSeconds}
-          setMinutes={setMinutes}
-        />
-      )}
+
+      <Timer
+        seconds={seconds}
+        minutes={minutes}
+        setSeconds={setSeconds}
+        setMinutes={setMinutes}
+        setDisableUpDown={setDisableUpDown}
+      />
       <div
         className="grid grid-flow-col auto-cols-[100%] grid-rows-none gap-10 mt-10 overflow-x-scroll w-100 card-data sm:auto-cols-[35%] md:auto-cols-[20%] lg:auto-cols-[20%] xl:auto-cols-[20%] 2xl:auto-cols-[20%]"
         style={{
           overflowX: "scroll",
+          height: "450px",
+          overflowY: "visible",
         }}
       >
         {rounds.map((data, index) => (
@@ -246,6 +296,8 @@ const Dashboard: React.FC<{}> = () => {
             disableUpDown={disableUpDown}
             latestAnswer={latestAnswer}
             prev={index === 0 ? oldest : rounds[index - 1]}
+            userRounds={userRounds}
+            postClaim={postClaim}
           />
         ))}
       </div>
