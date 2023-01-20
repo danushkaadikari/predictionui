@@ -345,7 +345,6 @@ export const FlipCardBack = ({
                 id="amount"
                 placeholder="Enter Amount"
                 max={Number(balanceStr)}
-                min={0.01}
                 value={inputVal}
                 onChange={(e) => setInputVal(e.target.value)}
                 required
